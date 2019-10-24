@@ -1,0 +1,217 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Oct 20 11:09:02 2019
+
+@author: Willy
+"""
+from HW3_1 import *
+import numpy as np
+
+initial_mean = 0
+b            = 1
+n            = 3
+a            = 3
+w            = np.array([1,2,3])
+ten_w = np.array(0)
+ten_x = []
+ten_y = []
+five_w = np.array(0)
+five_x = []
+five_y = []
+f_w = np.array(0)
+f_x = []
+f_y = []
+
+def lu_crout(A):
+    """
+    """ 
+    # initial LU matrix
+    input_shape = A.shape
+    n = input_shape[0]
+    L = np.zeros(input_shape)
+    U = np.eye(n)
+    L[0,0] = A[0,0]
+    
+    for j in range(1,n):
+        L[j,0] = A[j,0]
+        U[0,j] = A[0,j] / L[0,0]
+    
+    for j in range(1,n-1):
+        for i in range(j,n):
+            L[i,j] = A[i,j]
+            for k in range(0,j):
+                L[i,j] = L[i,j] - L[i,k] * U[k,j]
+        for k in range(j+1,n):
+            U[j,k] = A[j,k]
+            for i in range(0,j):
+                U[j,k] = U[j,k] - L[j,i] * U[i,k]
+            U[j,k] = U[j,k] / L[j,j]
+            
+    L[n-1,n-1] = A[n-1,n-1]
+    for k in range(0,n-1):
+        L[n-1,n-1] = L[n-1,n-1] - L[n-1,k] * U[k,n-1]
+    return L,U
+
+def inverse(A):
+    """
+    """
+    input_shape = A.shape
+    n = input_shape[0]
+    b_matrix = np.eye(n)
+    L,U = lu_crout(A)
+    A_inverse = np.zeros(input_shape)
+    
+    for col in range(0,n):
+        b_sub_matrix = b_matrix[:,col]
+        d_matrix = np.zeros(b_sub_matrix.shape)
+        d_matrix[0] = b_sub_matrix[0] / L[0,0]
+        for i in range(1,n):
+            d_matrix[i] = b_sub_matrix[i]
+            for j in range(0,i):
+                d_matrix[i] = d_matrix[i] - L[i][j] * d_matrix[j]
+            d_matrix[i] = d_matrix[i] / L[i,i]
+        A_inverse[n-1,col] = d_matrix[n-1]
+        for i in range(n-2,-1,-1):
+            A_inverse[i,col] = d_matrix[i]
+            for j in range(i+1,n):
+                A_inverse[i,col] = A_inverse[i,col] - U[i,j] * A_inverse[j,col]
+    return A_inverse
+
+def compute_covariance(variance, x_matrix, covariance):
+    S = inverse(covariance)
+    return variance * np.dot( transpose(x_matrix), x_matrix) + S
+
+def compute_mu(post_covariance, covariance , x_matrix, mean, y_matrix):
+    Sm = np.dot(inverse(covariance),mean)
+    return np.dot(inverse(post_covariance), a*np.dot( transpose(x_matrix),y_matrix)+Sm) 
+
+def produce_x_matrix( n , x_value):
+    x_matrix  = np.ones([1,n])
+    sum_value = 1.0
+    for i in range(n):
+        x_matrix[0,i] = sum_value
+        sum_value = sum_value * x_value
+    return x_matrix
+
+def online_sequence(covariance, mu , n, p_variance, x_matrix, y_value,mean):
+    global a
+    temp_a = 0
+    weight_variance = np.zeros([n])
+    for i in range(501):
+      # produce one data point
+      temp_a     = 1 / p_variance    
+      point  = np.random.uniform(-1,1,1)
+      value  = poly_linear_data_generator(n,a,w,point)
+      f_x.append(point[0])
+      f_y.append(value[0])
+      print("Add data point (",point[0],",",value[0],"):")
+      
+      temp_x_matrix  = produce_x_matrix(n,point[0])
+      x_matrix = np.concatenate((x_matrix, temp_x_matrix ), axis=0)
+      y_value  = np.concatenate((y_value,value), axis=0)
+      
+      covariance = a *  np.dot( np.transpose(x_matrix),x_matrix) + inverse(covariance)
+      temp       = np.dot(a *  np.transpose(x_matrix),y_value) + np.dot(inverse(covariance),mu)
+      mu         = np.dot(inverse(covariance), temp)
+      
+      p_mean     = np.dot(temp_x_matrix,mu)[0]
+      p_variance = 1/a + np.dot(np.dot(temp_x_matrix,inverse(covariance)),np.transpose(temp_x_matrix))[0,0]
+      
+      print("Postirior mean:")
+      print(mu)
+      print("\n")
+      print("Posterior variance:")
+      print(inverse(covariance))
+      print("\n")
+      print("Predictive distribution ~ N(",p_mean,p_variance,")")
+      
+      print("----------------------------------------")
+      if i == 10:
+          plt.subplot(223)
+          plt.plot(t1, f(t1, mu, 0), 'k-')
+          plt.plot(t1, f2(t1, mu, covariance, 1), 'r-')
+          plt.plot(t1, f2(t1, mu, covariance, -1), 'r-')
+          plt.scatter(f_x,f_y)
+      if i == 49:
+          plt.subplot(224)
+          plt.plot(t1, f(t1, mu, 0), 'k-')
+          plt.plot(t1, f2(t1, mu, covariance, 1), 'r-')
+          plt.plot(t1, f2(t1, mu, covariance, -1), 'r-')
+          plt.scatter(f_x,f_y)
+      if i == 500:
+          plt.subplot(222)
+          plt.plot(t1, f(t1, mu, 0), 'k-')
+          plt.plot(t1, f2(t1, mu, covariance, 1), 'r-')
+          plt.plot(t1, f2(t1, mu, covariance, -1), 'r-')
+          plt.scatter(f_x,f_y)
+          
+def f2(t1, mu, covariance, mode):
+    y_ans = np.zeros(t1.shape[0])
+    for i in range(t1.shape[0]):
+        point = t1[i]
+        temp_x_matrix  = produce_x_matrix(n,point)
+        mean     = np.dot(temp_x_matrix,mu)[0]
+        variance = 1/a + np.dot(np.dot(temp_x_matrix,inverse(covariance)),np.transpose(temp_x_matrix))[0,0]
+        mean = mean + mode * variance
+        y_ans[i] = mean
+    return y_ans
+        
+def f(t1, ploynomial_parameter, variance):
+    global n
+    y_ans = np.zeros(t1.shape[0])
+    A     = np.ones((t1.shape[0],n))
+    for i in range(0,A.shape[0]):
+        x = 1.0
+        for j in range(A.shape[1]):
+            y_ans[i] = y_ans[i] + A[i,j] * x * ploynomial_parameter[j]
+            x = x * t1[i]
+        
+        y_ans[i] += variance
+    return y_ans      
+if __name__ == '__main__':
+    covariance   = b * np.eye(n)
+    # produce one data point
+    first_point  = np.random.uniform(-1,1,1)
+    first_value  = poly_linear_data_generator(n,a,w,first_point)
+    f_x.append(first_point[0])
+    f_y.append(first_value[0])
+    print("Add data point (",first_point[0],",",first_value[0],"):")
+    x_matrix     = produce_x_matrix(n,first_point[0])
+    
+    # first step
+    covariance   = a * np.dot(np.transpose(x_matrix), x_matrix) + covariance
+    mu           = a * inverse(covariance).dot(np.transpose(x_matrix).dot(first_value))
+    #Predictive distribution ~ N
+    p_mean       = np.dot(x_matrix,mu)[0]
+    p_variance   = a + np.dot(np.dot(x_matrix,inverse(covariance)),np.transpose(x_matrix))[0,0]
+    print("Postirior mean:")
+    print(mu)
+    print("\n")
+    print("Posterior variance:")
+    print(inverse(covariance))
+    print("\n")
+    print("Predictive distribution ~ N(",p_mean,p_variance,")")
+    print("----------------------------------------")
+    t1 = np.arange(-1.5, 1.5 , 0.1)
+    plt.figure(figsize=(9, 6))
+    plt.subplot(221)
+    plt.plot(t1, f(t1, w, 0), 'k-')
+    plt.plot(t1, f(t1, w, a), 'r-')
+    plt.plot(t1, f(t1, w, -a), 'r-')
+    online_sequence(covariance , mu , n, p_variance, x_matrix, first_value,p_mean)
+    plt.show()
+    
+    
+    
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
+    
